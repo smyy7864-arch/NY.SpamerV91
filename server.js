@@ -28,15 +28,14 @@ app.post('/verify', async (req, res) => {
                     color: 0x00ff00,
                     fields: [
                         { name: "👤 משתמש", value: `**${userData.name}**`, inline: true },
-                        { name: "🌐 IP", value: `\`${ip}\``, inline: true },
-                        { name: "📱 מכשיר", value: `\`${device}\``, inline: false }
+                        { name: "🌐 IP", value: `\`${ip}\``, inline: true }
                     ],
                     footer: { text: "NEHORAY SYSTEM V2" },
                     timestamp: new Date()
                 }]
             });
         } catch (e) {
-            console.log("Discord error");
+            console.log("Webhook error");
         }
 
         const creditsDisplay = userData.credits === -1 ? "ללא הגבלה" : userData.credits;
@@ -63,4 +62,4 @@ app.post('/verify', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Live'));
+app.listen(PORT, () => console.log('Ready'));
