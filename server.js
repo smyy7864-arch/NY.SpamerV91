@@ -7,8 +7,8 @@ app.set('trust proxy', true);
 app.use(cors());
 app.use(express.json());
 
-// --- שים כאן את ה-WEBHOOK של הדיסקורד שלך ---
-const DISCORD_WEBHOOK = "כאן_שים_את_הקישור_שלך"; 
+// ה-Webhook האישי שלך
+const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1499107460961796116/GWQRrPPOb6adYRynYQRR1AiIUqnQUg07DlYuewZrvgMCvYFpdPGRRnXL1MlpW608XVo6"; 
 
 const VALID_CODES = {
     "NY2012": { name: "נהוראי (ADMIN)", credits: -1 },
@@ -19,29 +19,31 @@ app.post('/verify', async (req, res) => {
     const { code } = req.body;
     const userData = VALID_CODES[code];
     
+    // איסוף נתוני מכשיר ו-IP
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const device = req.headers['user-agent'] || "לא ידוע";
 
     if (userData) {
-        if(DISCORD_WEBHOOK.includes("http")) {
-            await axios.post(DISCORD_WEBHOOK, {
-                embeds: [{
-                    title: "🔔 התחברות חדשה למערכת",
-                    color: 0xFF0000, 
-                    fields: [
-                        { name: "👤 שם משתמש", value: `\`${userData.name}\``, inline: true },
-                        { name: "🔑 קוד", value: `\`${code}\``, inline: true },
-                        { name: "💳 קרדיטים", value: `\`${userData.credits === -1 ? 'ללא הגבלה' : userData.credits}\``, inline: true },
-                        { name: "🌐 IP", value: `\`${ip}\``, inline: false },
-                        { name: "📱 מכשיר", value: `\`${device}\``, inline: false }
-                    ],
-                    footer: { text: "NEHORAY SYSTEM V2" },
-                    timestamp: new Date()
-                }]
-            }).catch(e => {});
-        }
+        // שליחה מעוצבת לדיסקורד
+        await axios.post(DISCORD_WEBHOOK, {
+            embeds: [{
+                title: "🔔 התחברות חדשה למערכת",
+                color: 0xFF0000, // צבע אדום
+                fields: [
+                    { name: "👤 שם משתמש", value: `\`${userData.name}\``, inline: true },
+                    { name: "🔑 קוד", value: `\`${code}\``, inline: true },
+                    { name: "💳 קרדיטים", value: `\`${userData.credits === -1 ? 'ללא הגבלה' : userData.credits}\``, inline: true },
+                    { name: "🌐 כתובת IP", value: `\`${ip}\``, inline: false },
+                    { name: "📱 סוג מכשיר", value: `\`${device}\``, inline: false }
+                ],
+                footer: { text: "NEHORAY SYSTEM V2" },
+                timestamp: new Date()
+            }]
+        }).catch(e => console.log("Discord Error"));
 
         const creditsDisplay = userData.credits === -1 ? "ללא הגבלה" : userData.credits;
+        
+        // שליחת הפאנל המעוצב ל-Acode
         const panelHTML = `
             <div style="width: 100%; max-width: 350px; margin: 0 auto; text-align: center;">
                 <h1 style="color: red; font-size: 26px; margin-bottom: 5px;">NEHORAY SYSTEM V2</h1>
@@ -59,13 +61,13 @@ app.post('/verify', async (req, res) => {
                     <select id="usage" style="width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; margin-bottom: 20px; appearance: none;">
                         <option value="1">1 קרדיט (35 שניות)</option>
                         <option value="2">2 קרדיטים (70 שניות)</option>
-                        <option value="5">5 קרדיטים (בוסט)</option>
+                        <option value="5">5 קרדיטים (חזק)</option>
                     </select>
 
                     <button onclick="startAttack()" id="sBtn" style="width: 100%; padding: 14px; background: red; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer;">הפעל התקפה</button>
                 </div>
                 <div style="margin-top: 15px; display: flex; justify-content: center; gap: 15px;">
-                    <a href="#" style="color: #666; text-decoration: none; font-size: 12px;">תמיכה</a>
+                    <a href="https://discord.gg/YOUR_LINK" style="color: #666; text-decoration: none; font-size: 12px;">תמיכה</a>
                     ${userData.credits === -1 ? '<a href="#" style="color: #666; text-decoration: none; font-size: 12px;">מנהלים</a>' : ''}
                 </div>
                 <p id="status" style="margin-top: 15px; color: yellow; font-size: 13px;"></p>
@@ -73,10 +75,11 @@ app.post('/verify', async (req, res) => {
             <script>
                 function startAttack() {
                     const n = document.getElementById('target').value;
+                    const u = document.getElementById('usage').value;
                     if(!n) return alert('נא להזין מספר!');
                     document.getElementById('sBtn').disabled = true;
                     document.getElementById('sBtn').style.background = '#444';
-                    document.getElementById('status').innerText = 'מבצע התקפה על ' + n + '...';
+                    document.getElementById('status').innerText = 'מבצע התקפה על ' + n + ' ל-' + (u * 35) + ' שניות...';
                 }
             </script>
         `;
@@ -87,4 +90,4 @@ app.post('/verify', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(PORT, () => console.log("Server Live"));
