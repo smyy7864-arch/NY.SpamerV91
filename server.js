@@ -12,70 +12,45 @@ const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1499107460961796116/GW
 let ipCredits = {}; 
 let bannedIPs = []; 
 let bannedNumbers = []; 
-let spamLogs = [];
 
 async function sendToDiscord(title, desc, color = 0xff0000) {
     try {
         await axios.post(DISCORD_WEBHOOK, {
-            embeds: [{
-                title: title,
-                description: desc,
-                color: color,
-                timestamp: new Date()
-            }]
+            embeds: [{ title: title, description: desc, color: color, timestamp: new Date() }]
         });
     } catch (e) { console.log("Discord error"); }
 }
 
-// קבלת נתונים לאדמין
-app.get('/admin/data', (req, res) => {
-    res.json({ bannedIPs, bannedNumbers, spamLogs });
-});
-
-// הסרת חסימה
-app.post('/admin/unban', (req, res) => {
-    const { type, value } = req.body;
-    if (type === 'ip') bannedIPs = bannedIPs.filter(i => i !== value);
-    if (type === 'num') bannedNumbers = bannedNumbers.filter(n => n !== value);
-    res.json({ success: true });
-});
-
 app.post('/verify', async (req, res) => {
     const { code } = req.body;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const device = req.headers['user-agent'] || "Unknown Device";
-
     if (!ipCredits[ip]) ipCredits[ip] = 10;
-
     if (code === "1312") {
-        await sendToDiscord("✅ כניסה מוצלחת", `**IP:** ${ip}\n**מכשיר:** ${device}`, 0x00ff00);
         res.json({ success: true, credits: ipCredits[ip] });
-    } else {
-        await sendToDiscord("❌ קוד שגוי", `**הוזן:** ${code}\n**IP:** ${ip}`, 0xff0000);
-        res.json({ success: false });
-    }
+    } else { res.json({ success: false }); }
 });
 
-app.post('/spam', async (req, res) => {
-    const { target, amount } = req.body;
+app.get('/admin/data', (req, res) => {
+    res.json({ bannedIPs, bannedNumbers, ipCredits });
+});
+
+app.post('/admin/action', async (req, res) => {
+    const { action, value, amount, targetIp } = req.body;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    
-    if (bannedIPs.includes(ip) || bannedNumbers.includes(target)) {
-        return res.json({ success: false, message: "חסום!" });
-    }
 
-    spamLogs.push({ target, amount, ip, time: new Date().toLocaleTimeString() });
-    if (spamLogs.length > 20) spamLogs.shift();
-
-    await sendToDiscord("🚀 ספאם הופעל", `**יעד:** ${target}\n**כמות:** ${amount}\n**IP:** ${ip}`, 0x0000ff);
-    res.json({ success: true });
-});
-
-app.post('/admin/action', (req, res) => {
-    const { action, value, amount } = req.body;
     if (action === "banIP") bannedIPs.push(value);
+    if (action === "unbanIP") bannedIPs = bannedIPs.filter(i => i !== value);
     if (action === "banNum") bannedNumbers.push(value);
-    if (action === "addCredits") ipCredits[value] = amount;
+    if (action === "unbanNum") bannedNumbers = bannedNumbers.filter(n => n !== value);
+    if (action === "updateCredits") {
+        if (amount.toLowerCase() === "limited") {
+            ipCredits[targetIp] = "Unlimited";
+        } else {
+            let current = parseInt(ipCredits[targetIp] || 0);
+            ipCredits[targetIp] = current + parseInt(amount);
+        }
+    }
+    await sendToDiscord("👑 פעולת אדמין", `פעולה: ${action}\nערך: ${value || targetIp}\nבוצע ע"י: ${ip}`, 0xd4af37);
     res.json({ success: true });
 });
 
