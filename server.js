@@ -12,6 +12,7 @@ const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1499107460961796116/GW
 let ipCredits = {}; 
 let bannedIPs = []; 
 let bannedNumbers = []; 
+let spamLogs = [];
 
 async function sendToDiscord(title, desc, color = 0xff0000) {
     try {
@@ -20,60 +21,53 @@ async function sendToDiscord(title, desc, color = 0xff0000) {
                 title: title,
                 description: desc,
                 color: color,
-                timestamp: new Date(),
-                footer: { text: "Spamer V9 Monitor" }
+                timestamp: new Date()
             }]
         });
     } catch (e) { console.log("Discord error"); }
 }
 
-// אימות כניסה
+// קבלת נתונים לאדמין
+app.get('/admin/data', (req, res) => {
+    res.json({ bannedIPs, bannedNumbers, spamLogs });
+});
+
+// הסרת חסימה
+app.post('/admin/unban', (req, res) => {
+    const { type, value } = req.body;
+    if (type === 'ip') bannedIPs = bannedIPs.filter(i => i !== value);
+    if (type === 'num') bannedNumbers = bannedNumbers.filter(n => n !== value);
+    res.json({ success: true });
+});
+
 app.post('/verify', async (req, res) => {
     const { code } = req.body;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const device = req.headers['user-agent'] || "Unknown Device";
 
-    if (!ipCredits[ip]) { ipCredits[ip] = 10; }
+    if (!ipCredits[ip]) ipCredits[ip] = 10;
 
     if (code === "1312") {
-        await sendToDiscord("✅ כניסה מוצלחת למערכת", `**IP:** ${ip}\n**מכשיר:** ${device}\n**קרדיטים:** ${ipCredits[ip]}`, 0x00ff00);
+        await sendToDiscord("✅ כניסה מוצלחת", `**IP:** ${ip}\n**מכשיר:** ${device}`, 0x00ff00);
         res.json({ success: true, credits: ipCredits[ip] });
     } else {
-        await sendToDiscord("❌ ניסיון כניסה נכשל (קוד שגוי)", `**הוזן קוד:** ${code}\n**IP:** ${ip}\n**מכשיר:** ${device}`, 0xff0000);
+        await sendToDiscord("❌ קוד שגוי", `**הוזן:** ${code}\n**IP:** ${ip}`, 0xff0000);
         res.json({ success: false });
     }
 });
 
-// התראת תמיכה
-app.post('/support-clicked', async (req, res) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    await sendToDiscord("🆘 משתמש לחץ על תמיכה", `המשתמש ביקש עזרה.\n**IP:** ${ip}`, 0xffff00);
-    res.json({ success: true });
-});
-
-// התראת ניסיון כניסה לאדמין
-app.post('/admin-attempt', async (req, res) => {
-    const { code, success } = req.body;
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const title = success ? "👑 כניסה מוצלחת לאדמין" : "⚠️ ניסיון פריצה לאדמין";
-    const color = success ? 0xd4af37 : 0xffa500;
-    
-    await sendToDiscord(title, `**קוד שהוקלד:** ${code}\n**IP:** ${ip}`, color);
-    res.json({ success: true });
-});
-
-// הפעלת ספאם
 app.post('/spam', async (req, res) => {
     const { target, amount } = req.body;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const device = req.headers['user-agent'] || "Unknown Device";
-
+    
     if (bannedIPs.includes(ip) || bannedNumbers.includes(target)) {
-        await sendToDiscord("🚫 ניסיון ספאם חסום", `**IP:** ${ip}\n**יעד:** ${target}`, 0x555555);
-        return res.json({ success: false, message: "גישה חסומה!" });
+        return res.json({ success: false, message: "חסום!" });
     }
 
-    await sendToDiscord("🚀 התקפת ספאם יצאה לדרך", `**יעד:** ${target}\n**קרדיטים:** ${amount}\n**זמן משוער:** ${amount * 35} שניות\n**IP:** ${ip}\n**מכשיר:** ${device}`, 0x0000ff);
+    spamLogs.push({ target, amount, ip, time: new Date().toLocaleTimeString() });
+    if (spamLogs.length > 20) spamLogs.shift();
+
+    await sendToDiscord("🚀 ספאם הופעל", `**יעד:** ${target}\n**כמות:** ${amount}\n**IP:** ${ip}`, 0x0000ff);
     res.json({ success: true });
 });
 
@@ -81,7 +75,7 @@ app.post('/admin/action', (req, res) => {
     const { action, value, amount } = req.body;
     if (action === "banIP") bannedIPs.push(value);
     if (action === "banNum") bannedNumbers.push(value);
-    if (action === "addCredits") ipCredits[value] = (amount === "Limited") ? "ללא הגבלה" : parseInt(amount);
+    if (action === "addCredits") ipCredits[value] = amount;
     res.json({ success: true });
 });
 
