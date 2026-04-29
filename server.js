@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const app = express();
-
 app.set('trust proxy', true); 
 app.use(cors());
 app.use(express.json());
@@ -17,20 +16,17 @@ const VALID_CODES = {
 app.post('/verify', async (req, res) => {
     const { code } = req.body;
     const userData = VALID_CODES[code];
-    
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const device = req.headers['user-agent'] || "לא ידוע";
 
     if (userData) {
-        // שליחה לדיסקורד
         await axios.post(DISCORD_WEBHOOK, {
             embeds: [{
-                title: "🔔 התחברות חדשה",
+                title: "🔔 התחברות למערכת",
                 color: 0xFF0000,
                 fields: [
                     { name: "👤 משתמש", value: `\`${userData.name}\``, inline: true },
-                    { name: "🌐 IP", value: `\`${ip}\``, inline: true },
-                    { name: "📱 מכשיר", value: `\`${device}\``, inline: false }
+                    { name: "🌐 IP", value: `\`${ip}\``, inline: true }
                 ],
                 timestamp: new Date()
             }]
@@ -38,46 +34,38 @@ app.post('/verify', async (req, res) => {
 
         const creditsDisplay = userData.credits === -1 ? "ללא הגבלה" : userData.credits;
         
-        // --- כאן העיצוב החדש שביקשת (בתוך מלבן) ---
+        // פאנל מוקטן יותר עם 3 נקודות
         const panelHTML = `
-            <div style="background: rgba(15, 15, 15, 0.95); border: 2px solid red; padding: 25px; border-radius: 15px; width: 320px; box-shadow: 0 0 20px rgba(255, 0, 0, 0.2); text-align: right; color: white;">
-                <h2 style="color: red; text-align: center; margin-top: 0; letter-spacing: 2px;">NEHORAY SYSTEM</h2>
-                <div style="width: 100%; height: 1px; background: #333; margin-bottom: 20px;"></div>
+            <div style="background: rgba(10, 10, 10, 0.98); border: 1px solid red; padding: 20px; border-radius: 12px; width: 290px; text-align: right; color: white; box-shadow: 0 0 15px rgba(255,0,0,0.3);">
+                <h3 style="color: red; text-align: center; margin: 0 0 15px 0; font-size: 20px;">NEHORAY SYSTEM V2</h3>
                 
-                <p style="font-size: 18px; margin: 0;">שלום, <span style="color: red; font-weight: bold;">${userData.name}</span></p>
-                <p style="font-size: 14px; color: #aaa; margin-top: 5px;">קרדיטים: <span style="color: #0f0;">${creditsDisplay}</span></p>
+                <p style="font-size: 16px; margin: 0;">שלום, <span style="font-weight: bold;">${userData.name}</span></p>
+                <p style="font-size: 13px; color: #aaa; margin: 5px 0 15px 0;">קרדיטים: <span style="color: #0f0;">${creditsDisplay}</span></p>
 
-                <div style="margin-top: 25px;">
-                    <label style="display: block; font-size: 14px; margin-bottom: 8px;">מספר טלפון יעד:</label>
-                    <input type="text" id="target" placeholder="0500000000" style="width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; text-align: center;">
-                    
-                    <p style="font-size: 11px; color: #777; margin: 8px 0;">קרדיט 1 = 35 שניות ספאם</p>
+                <input type="text" id="target" placeholder="מספר מטרה" style="width: 100%; padding: 10px; background: #000; border: 1px solid #333; color: white; border-radius: 5px; box-sizing: border-box;">
+                <p style="font-size: 10px; color: #666; margin: 5px 0;">קרדיט 1 = 35 שניות</p>
 
-                    <label style="display: block; font-size: 14px; margin-bottom: 8px;">כמות קרדיטים לשימוש:</label>
-                    <select id="usage" style="width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 8px; cursor: pointer;">
-                        <option value="1">1 קרדיט (35 שניות)</option>
-                        <option value="2">2 קרדיטים (70 שניות)</option>
-                        <option value="5">5 קרדיטים (בוסט)</option>
-                    </select>
+                <select id="usage" style="width: 100%; padding: 10px; background: #000; border: 1px solid #333; color: white; border-radius: 5px; margin-bottom: 15px;">
+                    <option value="1">1 קרדיט</option>
+                    <option value="2">2 קרדיטים</option>
+                    <option value="5">5 קרדיטים</option>
+                </select>
 
-                    <button onclick="startAttack()" id="sBtn" style="width: 100%; padding: 15px; background: red; color: white; border: none; border-radius: 8px; margin-top: 25px; font-weight: bold; cursor: pointer; font-size: 16px;">הפעל מתקפה</button>
-                </div>
+                <button onclick="startAttack()" id="sBtn" style="width: 100%; padding: 12px; background: red; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">הפעל התקפה</button>
                 
-                <div style="margin-top: 20px; display: flex; justify-content: center; gap: 20px; font-size: 12px;">
-                    <a href="#" style="color: #555; text-decoration: none;">תמיכה</a>
-                    ${userData.credits === -1 ? '<a href="#" style="color: #555; text-decoration: none;">מנהלים</a>' : ''}
+                <div style="margin-top: 15px; display: flex; justify-content: center; gap: 15px; font-size: 11px;">
+                    <a href="#" style="color: #444; text-decoration: none;">תמיכה ...</a>
+                    ${userData.credits === -1 ? '<a href="#" style="color: #444; text-decoration: none;">מנהלים ...</a>' : ''}
                 </div>
-                <p id="status" style="text-align: center; color: yellow; font-size: 12px; margin-top: 10px;"></p>
+                <p id="status" style="text-align: center; color: yellow; font-size: 11px; margin-top: 10px;"></p>
             </div>
 
             <script>
                 function startAttack() {
                     const n = document.getElementById('target').value;
-                    const u = document.getElementById('usage').value;
                     if(!n) return alert('נא להזין מספר!');
                     document.getElementById('sBtn').disabled = true;
-                    document.getElementById('sBtn').style.background = '#333';
-                    document.getElementById('status').innerText = 'מבצע התקפה על ' + n + ' ל-' + (u * 35) + ' שניות...';
+                    document.getElementById('status').innerText = 'מתקיף את ' + n + '...';
                 }
             </script>
         `;
