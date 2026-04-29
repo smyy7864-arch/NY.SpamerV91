@@ -1,110 +1,90 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-
+const axios = require('axios');
 const app = express();
+
+app.set('trust proxy', true); 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-// --- "בנק" הקרדיטים (נשמר בזיכרון של השרת) ---
-let database = {
-    users: {
-        "admin": { credits: -1 }, // -1 מסמל קרדיטים ללא הגבלה
-    }
+// --- שים כאן את ה-WEBHOOK של הדיסקורד שלך ---
+const DISCORD_WEBHOOK = "כאן_שים_את_הקישור_שלך"; 
+
+const VALID_CODES = {
+    "NY2012": { name: "נהוראי (ADMIN)", credits: -1 },
+    "2012": { name: "אורח", credits: 50 }
 };
 
-const CONFIG = {
-    CODE1: "2012",      // קוד הכניסה לאתר שלך
-    ADMIN_KEY: "NY2012"  // מפתח סודי שתשתמש בו בבוט הדיסקורד
-};
-
-// פונקציה שמייצרת את ה-HTML של הפאנל עם נתוני המשתמש
-const getSpammerHTML = (username, credits) => {
-    let creditText = credits === -1 ? "ללא הגבלה" : credits;
-    return `
-        <div style="text-align:right; direction:rtl; font-family:sans-serif;">
-            <h2 style="color:red; border-bottom:2px solid red; padding-bottom:10px;">NEHORAY SYSTEM V2</h2>
-            <p style="color:white; font-size:18px;">שלום <b>${username}</b></p>
-            <p style="color:#0f0; font-size:16px;">קרדיטים שנותרו: <span style="background:#222; padding:2px 8px; border-radius:4px;">${creditText}</span></p>
-            <hr style="border:0.5px solid #333; margin:20px 0;">
-            
-            <label style="color:#bbb; display:block; margin-bottom:5px;">מספר טלפון מטרה:</label>
-            <input type="text" id="targetNum" placeholder="למשל: 0501234567" 
-                style="width:100%; padding:12px; margin-bottom:15px; background:#111; color:#0f0; border:1px solid #444; border-radius:8px; outline:none;">
-            
-            <button onclick="startSpam()" id="btn" 
-                style="width:100%; padding:15px; background:linear-gradient(to bottom, #ff0000, #990000); color:white; border:none; font-weight:bold; cursor:pointer; border-radius:8px; text-shadow:1px 1px 2px #000;">
-                הפעל התקפה (35 שניות)
-            </button>
-            
-            <p id="status" style="font-size:14px; margin-top:15px; text-align:center; color:gray;"></p>
-        </div>
-        <script>
-            async function startSpam() {
-                const num = document.getElementById('targetNum').value;
-                const status = document.getElementById('status');
-                const btn = document.getElementById('btn');
-                
-                if(!num || num.length < 9) return alert('נא להכניס מספר טלפון תקין!');
-                
-                btn.disabled = true;
-                btn.style.opacity = "0.5";
-                status.innerText = "ההתקפה החלה... שולח חבילות למספר " + num;
-                status.style.color = "yellow";
-                
-                // כאן יבוא בעתיד הקוד שמפעיל את הבוטים האמיתיים שלך
-                setTimeout(() => {
-                    status.innerText = "ההתקפה הסתיימה בהצלחה!";
-                    status.style.color = "#0f0";
-                    btn.disabled = false;
-                    btn.style.opacity = "1";
-                }, 35000);
-            }
-        </script>
-    `;
-};
-
-// נתיב לבדיקת קוד כניסה (מה שהאתר ב-Acode ישלח)
-app.post('/verify', (req, res) => {
-    const { code, username } = req.body;
-    const finalUser = username || "Guest";
-
-    if (code === CONFIG.CODE1) {
-        // אם המשתמש לא קיים בבנק, ניצור אותו עם 0 קרדיטים
-        if (!database.users[finalUser]) {
-            database.users[finalUser] = { credits: 0 };
-        }
-        const user = database.users[finalUser];
-        res.json({ 
-            success: true, 
-            html: getSpammerHTML(finalUser, user.credits)
-        });
-    } else {
-        res.json({ success: false, message: "הקוד שהזנת שגוי" });
-    }
-});
-
-// נתיב לניהול המשתמשים (לשימוש בבוט הדיסקורד שלך)
-app.post('/admin/manage', (req, res) => {
-    const { key, targetUser, action, amount } = req.body;
+app.post('/verify', async (req, res) => {
+    const { code } = req.body;
+    const userData = VALID_CODES[code];
     
-    // בדיקת אבטחה שהבקשה מגיעה ממך (מהבוט)
-    if (key !== CONFIG.ADMIN_KEY) return res.status(401).json({ error: "No Access" });
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const device = req.headers['user-agent'] || "לא ידוע";
 
-    if (!database.users[targetUser]) database.users[targetUser] = { credits: 0 };
+    if (userData) {
+        if(DISCORD_WEBHOOK.includes("http")) {
+            await axios.post(DISCORD_WEBHOOK, {
+                embeds: [{
+                    title: "🔔 התחברות חדשה למערכת",
+                    color: 0xFF0000, 
+                    fields: [
+                        { name: "👤 שם משתמש", value: `\`${userData.name}\``, inline: true },
+                        { name: "🔑 קוד", value: `\`${code}\``, inline: true },
+                        { name: "💳 קרדיטים", value: `\`${userData.credits === -1 ? 'ללא הגבלה' : userData.credits}\``, inline: true },
+                        { name: "🌐 IP", value: `\`${ip}\``, inline: false },
+                        { name: "📱 מכשיר", value: `\`${device}\``, inline: false }
+                    ],
+                    footer: { text: "NEHORAY SYSTEM V2" },
+                    timestamp: new Date()
+                }]
+            }).catch(e => {});
+        }
 
-    if (action === "add") database.users[targetUser].credits += (amount || 0);
-    if (action === "remove") database.users[targetUser].credits -= (amount || 0);
-    if (action === "set_unlimited") database.users[targetUser].credits = -1;
-    if (action === "reset") database.users[targetUser].credits = 0;
+        const creditsDisplay = userData.credits === -1 ? "ללא הגבלה" : userData.credits;
+        const panelHTML = `
+            <div style="width: 100%; max-width: 350px; margin: 0 auto; text-align: center;">
+                <h1 style="color: red; font-size: 26px; margin-bottom: 5px;">NEHORAY SYSTEM V2</h1>
+                <div style="width: 100%; height: 2px; background: red; margin-bottom: 20px;"></div>
+                
+                <div style="background: rgba(10, 10, 10, 0.95); border: 1px solid #333; padding: 20px; border-radius: 12px; text-align: right;">
+                    <p style="font-size: 20px; margin: 0 0 5px 0;">שלום <span style="font-weight: bold;">${userData.name}</span></p>
+                    <p style="font-size: 16px; margin: 0 0 20px 0;">קרדיטים שנותרו: <span style="color: #0f0; background: rgba(0,255,0,0.1); padding: 2px 8px; border-radius: 4px;">${creditsDisplay}</span></p>
 
-    res.json({ 
-        success: true, 
-        user: targetUser,
-        newBalance: database.users[targetUser].credits 
-    });
+                    <label style="font-size: 16px; display: block; margin-bottom: 8px;">מספר טלפון מטרה:</label>
+                    <input type="text" id="target" placeholder="למשל: 0501234567" style="width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; box-sizing: border-box;">
+                    <p style="font-size: 12px; color: #888; margin: 8px 0 20px 0;">קרדיט 1 = 35 שניות ספאם</p>
+
+                    <label style="font-size: 16px; display: block; margin-bottom: 8px;">כמות קרדיטים לשימוש:</label>
+                    <select id="usage" style="width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; margin-bottom: 20px; appearance: none;">
+                        <option value="1">1 קרדיט (35 שניות)</option>
+                        <option value="2">2 קרדיטים (70 שניות)</option>
+                        <option value="5">5 קרדיטים (בוסט)</option>
+                    </select>
+
+                    <button onclick="startAttack()" id="sBtn" style="width: 100%; padding: 14px; background: red; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer;">הפעל התקפה</button>
+                </div>
+                <div style="margin-top: 15px; display: flex; justify-content: center; gap: 15px;">
+                    <a href="#" style="color: #666; text-decoration: none; font-size: 12px;">תמיכה</a>
+                    ${userData.credits === -1 ? '<a href="#" style="color: #666; text-decoration: none; font-size: 12px;">מנהלים</a>' : ''}
+                </div>
+                <p id="status" style="margin-top: 15px; color: yellow; font-size: 13px;"></p>
+            </div>
+            <script>
+                function startAttack() {
+                    const n = document.getElementById('target').value;
+                    if(!n) return alert('נא להזין מספר!');
+                    document.getElementById('sBtn').disabled = true;
+                    document.getElementById('sBtn').style.background = '#444';
+                    document.getElementById('status').innerText = 'מבצע התקפה על ' + n + '...';
+                }
+            </script>
+        `;
+        res.json({ success: true, html: panelHTML });
+    } else {
+        res.json({ success: false });
+    }
 });
 
-// הפעלת השרת על הפורט של Render
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('--- NEHORAY SERVER IS ONLINE ON PORT ' + PORT + ' ---'));
+app.listen(PORT, () => console.log("Server running on port " + PORT));
